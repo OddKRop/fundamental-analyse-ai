@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fundamental Analyse AI — Norske Aksjer
 
-## Getting Started
+AI-genererte fundamentalanalyser av norske aksjer på Oslo Børs. Analysene genereres av Claude og lagres i Supabase — oppdateres kvartalsvis, ikke per brukerbesøk.
 
-First, run the development server:
+## Hvordan det fungerer
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+1. **Generering** — `POST /api/admin/refresh` henter fundamental data fra Yahoo Finance for hvert selskap i `lib/tickers.ts`, sender det til Claude, og lagrer analysen i Supabase
+2. **Visning** — Brukere ser en liste over alle analyserte selskaper på forsiden, og kan klikke seg inn på hver enkelt analyse
+3. **Oppdatering** — En Vercel Cron-jobb kjører automatisk 1. januar, april, juli og oktober
+
+## Supabase-oppsett
+
+Opprett et nytt prosjekt på [supabase.com](https://supabase.com), gå til **SQL Editor** og kjør:
+
+```sql
+CREATE TABLE analyses (
+  ticker        TEXT PRIMARY KEY,
+  company_name  TEXT,
+  sector        TEXT,
+  market_cap    BIGINT,
+  price         NUMERIC,
+  currency      TEXT,
+  analysis_text TEXT,
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Miljøvariabler
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Kopier `.env.local.example` til `.env.local` og fyll inn:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variabel | Beskrivelse |
+|---|---|
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) |
+| `SUPABASE_URL` | Project Settings → API → Project URL |
+| `SUPABASE_SERVICE_KEY` | Project Settings → API → service_role key |
+| `CRON_SECRET` | Valgfri hemmelig streng — beskytter refresh-endepunktet |
 
-## Learn More
+## Oppsett lokalt
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+cp .env.local.example .env.local
+# Fyll inn alle nøkler
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Generer analyser manuelt (én ticker):
+```bash
+curl -X POST "http://localhost:3000/api/admin/refresh?ticker=EQNR.OL&secret=din_token"
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Generer alle:
+```bash
+curl -X POST "http://localhost:3000/api/admin/refresh?secret=din_token"
+```
 
-## Deploy on Vercel
+## Legg til eller fjern selskaper
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Rediger `lib/tickers.ts` og kjør refresh.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy på Vercel
+
+```bash
+vercel
+```
+
+Legg til alle miljøvariabler i Vercel-prosjektet (Settings → Environment Variables). Cron-jobben er konfigurert i `vercel.json` og kjører automatisk kvartalsvis på Vercel Pro — på gratis plan må du trigge refresh manuelt.
+
+## Tech stack
+
+- **Next.js** (App Router) med TypeScript
+- **Tailwind CSS**
+- **Yahoo Finance** (`yahoo-finance2`) — gratis, ingen API-nøkkel
+- **Claude API** (`claude-sonnet-4-20250514`) for analyse
+- **Supabase** (PostgreSQL) for lagring av analyser
