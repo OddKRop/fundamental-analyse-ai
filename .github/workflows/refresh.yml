@@ -1,0 +1,15 @@
+name: Quarterly analysis refresh
+
+on:
+  schedule:
+    - cron: '0 6 1 1,4,7,10 *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Trigger analysis refresh
+        run: |
+          curl -f -X POST "${{ secrets.APP_URL }}/api/admin/refresh?secret=${{ secrets.CRON_SECRET }}"
