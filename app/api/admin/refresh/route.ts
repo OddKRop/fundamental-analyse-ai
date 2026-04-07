@@ -4,6 +4,8 @@ import { generateAnalysis } from "@/lib/claude";
 import { upsertAnalysis } from "@/lib/supabase";
 import { OSLO_BORS_TICKERS } from "@/lib/tickers";
 
+export const maxDuration = 60;
+
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
