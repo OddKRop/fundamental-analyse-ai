@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const YahooFinance = require("yahoo-finance2").default;
+import yahooFinance from "yahoo-finance2";
+const YahooFinance = yahooFinance.default ?? yahooFinance;
 const yf = new YahooFinance();
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
