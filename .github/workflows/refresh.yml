@@ -10,19 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Refresh all tickers one by one
-        run: |
-          TICKERS=(
-            "EQNR.OL" "DNB.OL" "TEL.OL" "AKRBP.OL" "NHY.OL"
-            "MOWI.OL" "YAR.OL" "ORK.OL" "SALM.OL" "KOG.OL"
-            "STB.OL" "GJF.OL" "SUBC.OL" "SCATC.OL" "NEL.OL"
-            "BOUV.OL" "PGS.OL" "TGS.OL" "FRO.OL" "BWO.OL"
-            "AUTO.OL" "NSKOG.OL" "RECSI.OL"
-          )
+      - uses: actions/checkout@v4
 
-          for TICKER in "${TICKERS[@]}"; do
-            echo "--- Refreshing $TICKER ---"
-            curl -f -L -X POST "${{ secrets.APP_URL }}/api/admin/refresh?ticker=$TICKER&secret=${{ secrets.CRON_SECRET }}" || echo "FAILED: $TICKER"
-            echo ""
-            sleep 5
-          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run analysis refresh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/refresh.mjs
