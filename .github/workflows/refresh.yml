@@ -12,4 +12,4 @@ jobs:
     steps:
       - name: Trigger analysis refresh
         run: |
-          curl -f -X POST "${{ secrets.APP_URL }}/api/admin/refresh?secret=${{ secrets.CRON_SECRET }}"
+          curl -f -L -X POST "${{ secrets.APP_URL }}/api/admin/refresh?secret=${{ secrets.CRON_SECRET }}"
