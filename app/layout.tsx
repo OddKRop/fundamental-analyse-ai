@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="max-w-3xl mx-auto px-4 py-10">{children}</main>
         <footer className="border-t border-zinc-200 mt-16">
           <div className="max-w-3xl mx-auto px-4 py-6 text-center text-xs text-zinc-400">
-            Data fra Financial Modeling Prep. Analyse generert av Claude AI. Ikke finansiell rådgivning.
+            Data fra Yahoo Finance. Analyse generert av Claude AI. Ikke finansiell rådgivning.
           </div>
         </footer>
       </body>

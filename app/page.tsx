@@ -30,7 +30,7 @@ export default async function HomePage() {
 
       {analyses.length === 0 ? (
         <div className="text-center py-20 text-zinc-400">
-          <p className="mb-2">Ingen analyser er generert ennå.</p>
+          <p className="mb-2">Ingen analyser er generert enda.</p>
           <p className="text-sm">Kjør <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-600">POST /api/admin/refresh</code> for å generere analyser.</p>
         </div>
       ) : (
