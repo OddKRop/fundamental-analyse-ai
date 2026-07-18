@@ -1,8 +1,8 @@
-import Link from "next/link";
-import { OSLO_BORS_TICKERS } from "@/lib/tickers";
+import { DCF_TICKERS } from "@/lib/dcfTickers";
 import { fetchFundamentalData } from "@/lib/yahoo";
 import { computeDefaultValuation, type DefaultValuation } from "@/lib/dcf";
 import TickerSearch from "./TickerSearch";
+import TickerList from "./TickerList";
 
 export const revalidate = 3600; // 1 time — unngå å kalle Yahoo Finance for alle tickere på hvert besøk
 
@@ -15,10 +15,35 @@ async function getValuation(ticker: string): Promise<DefaultValuation | null> {
   }
 }
 
+/**
+ * Kjører fn over items med maks `concurrency` samtidig — Yahoo Finance rate-limiter
+ * aggressivt ved store, ubegrensede parallelle kall (verifisert: 40 samtidige kall uten
+ * throttling feilet 100 %, med begrenset samtidighet fungerte det fint).
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const i = index++;
+      results[i] = await fn(items[i]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 export default async function DcfPickerPage() {
-  const valuations = await Promise.all(
-    OSLO_BORS_TICKERS.map(async (t) => ({ ...t, valuation: await getValuation(t.ticker) }))
-  );
+  const valuations = await mapWithConcurrency(DCF_TICKERS, 4, async (t) => ({
+    ...t,
+    valuation: await getValuation(t.ticker),
+  }));
 
   return (
     <div>
@@ -31,37 +56,15 @@ export default async function DcfPickerPage() {
 
       <TickerSearch />
 
-      <h2 className="text-sm font-medium text-zinc-500 mb-3 uppercase tracking-wider">Oslo Børs</h2>
+      <h2 className="text-sm font-medium text-zinc-500 mb-1 uppercase tracking-wider">
+        Oslo Børs ({DCF_TICKERS.length} selskaper)
+      </h2>
       <p className="text-xs text-zinc-400 mb-4">
         Over-/undervurdert er regnet ut med standardforutsetninger (8 % vekst, 5 år, 2,5 % terminalvekst) —
         klikk inn for å justere selv.
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {valuations.map((t) => (
-          <Link
-            key={t.ticker}
-            href={`/dcf/${t.ticker}`}
-            className="px-3 py-2 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50 transition-colors text-sm"
-          >
-            <span className="text-zinc-900 font-medium">{t.name}</span>
-            <span className="text-zinc-400 font-mono text-xs block mb-1">{t.ticker}</span>
-            {t.valuation ? (
-              <span
-                className={
-                  t.valuation.diffPct >= 0
-                    ? "text-emerald-600 text-xs font-medium"
-                    : "text-red-500 text-xs font-medium"
-                }
-              >
-                {t.valuation.diffPct >= 0 ? "Undervurdert" : "Overvurdert"}{" "}
-                {Math.abs(t.valuation.diffPct * 100).toFixed(0)}%
-              </span>
-            ) : (
-              <span className="text-zinc-300 text-xs">Ingen data</span>
-            )}
-          </Link>
-        ))}
-      </div>
+
+      <TickerList tickers={valuations} />
     </div>
   );
 }
