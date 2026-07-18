@@ -63,7 +63,7 @@ export default async function AnalysePage({ params }: Props) {
         <p className="text-zinc-500 mb-8">
           Dette selskapet er ikke analysert ennå. Analyser oppdateres kvartalsvis.
         </p>
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900 underline underline-offset-2">
+        <Link href="/analyse" className="inline-flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900 underline underline-offset-2">
           ← Tilbake til oversikten
         </Link>
       </div>
@@ -74,9 +74,12 @@ export default async function AnalysePage({ params }: Props) {
 
   return (
     <div>
-      <div className="mb-8">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-700 transition-colors">
+      <div className="mb-8 flex items-center justify-between">
+        <Link href="/analyse" className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-700 transition-colors">
           ← Alle selskaper
+        </Link>
+        <Link href={`/dcf/${upperTicker}`} className="text-sm text-zinc-500 hover:text-zinc-900 underline underline-offset-2">
+          DCF-verdsettelse →
         </Link>
       </div>
 

@@ -6,8 +6,8 @@ import Link from "next/link";
 const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Fundamental Analyse AI — Norske Aksjer",
-  description: "AI-drevet fundamental analyse av norske aksjer notert på Oslo Børs.",
+  title: "Økonomi — Oversikt",
+  description: "Samlet oversikt over personlig økonomi, aksjeanalyse og portefølje.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -20,11 +20,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               href="/"
               className="text-zinc-900 font-semibold text-lg tracking-tight hover:text-zinc-600 transition-colors"
             >
-              Fundamental Analyse
+              Økonomi
             </Link>
-            <span className="text-xs text-zinc-400 font-mono uppercase tracking-wider">
-              Oslo Børs · AI
-            </span>
+            <nav className="flex items-center gap-5 text-sm text-zinc-500">
+              <Link href="/analyse" className="hover:text-zinc-900 transition-colors">
+                Fundamental analyse
+              </Link>
+              <Link href="/dcf" className="hover:text-zinc-900 transition-colors">
+                DCF-verdsettelse
+              </Link>
+              <Link href="/portefolje" className="hover:text-zinc-900 transition-colors">
+                Portefølje
+              </Link>
+              <Link href="/okonomi" className="hover:text-zinc-900 transition-colors">
+                Personlig økonomi
+              </Link>
+            </nav>
           </div>
         </header>
         <main className="max-w-3xl mx-auto px-4 py-10">{children}</main>

@@ -32,14 +32,35 @@ function pct(n) {
   return `${(n * 100).toFixed(1)}%`;
 }
 
+async function fetchTimeSeries(ticker, module) {
+  const period1 = new Date();
+  period1.setFullYear(period1.getFullYear() - 6);
+
+  try {
+    const data = await yf.fundamentalsTimeSeries(ticker, { period1, type: "annual", module });
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+function sortByDateDesc(rows) {
+  return rows.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
 async function fetchData(ticker) {
-  const q = await yf.quoteSummary(ticker, {
-    modules: [
-      "summaryProfile", "summaryDetail", "defaultKeyStatistics",
-      "financialData", "price",
-      "incomeStatementHistory", "balanceSheetHistory", "cashflowStatementHistory",
-    ],
-  });
+  // summaryProfile/summaryDetail/defaultKeyStatistics/financialData/price are still populated by
+  // quoteSummary. The historical statement submodules (incomeStatementHistory etc.) have returned
+  // almost no data since Nov 2024 — use fundamentalsTimeSeries for those instead (see yahoo-finance2
+  // deprecation notice).
+  const [q, financialsTs, balanceSheetTs, cashFlowTs] = await Promise.all([
+    yf.quoteSummary(ticker, {
+      modules: ["summaryProfile", "summaryDetail", "defaultKeyStatistics", "financialData", "price"],
+    }),
+    fetchTimeSeries(ticker, "financials"),
+    fetchTimeSeries(ticker, "balance-sheet"),
+    fetchTimeSeries(ticker, "cash-flow"),
+  ]);
 
   const price = q.price;
   const profile = q.summaryProfile;
@@ -47,15 +68,15 @@ async function fetchData(ticker) {
   const stats = q.defaultKeyStatistics;
   const finData = q.financialData;
 
-  const incomeStatements = (q.incomeStatementHistory?.incomeStatementHistory || []).map((s) => {
+  const incomeStatements = sortByDateDesc(financialsTs).map((s) => {
     const rev = s.totalRevenue || 0;
     const gp = s.grossProfit || 0;
     const oi = s.operatingIncome || 0;
     const ni = s.netIncome || 0;
     return {
-      date: s.endDate ? new Date(s.endDate).toISOString().slice(0, 10) : "",
+      date: s.date ? new Date(s.date).toISOString().slice(0, 10) : "",
       revenue: rev, grossProfit: gp, operatingIncome: oi, netIncome: ni,
-      ebitda: s.ebitda || 0,
+      ebitda: s.EBITDA || 0,
       grossProfitRatio: rev ? gp / rev : 0,
       operatingIncomeRatio: rev ? oi / rev : 0,
       netIncomeRatio: rev ? ni / rev : 0,
@@ -63,22 +84,22 @@ async function fetchData(ticker) {
     };
   });
 
-  const balanceSheets = (q.balanceSheetHistory?.balanceSheetStatements || []).map((s) => ({
-    date: s.endDate ? new Date(s.endDate).toISOString().slice(0, 10) : "",
+  const balanceSheets = sortByDateDesc(balanceSheetTs).map((s) => ({
+    date: s.date ? new Date(s.date).toISOString().slice(0, 10) : "",
     totalAssets: s.totalAssets || 0,
-    totalLiabilities: s.totalLiab || 0,
-    totalStockholdersEquity: s.totalStockholderEquity || 0,
-    totalDebt: s.longTermDebt || 0,
-    cashAndCashEquivalents: s.cash || 0,
+    totalLiabilities: s.totalLiabilitiesNetMinorityInterest || 0,
+    totalStockholdersEquity: s.stockholdersEquity || 0,
+    totalDebt: s.totalDebt || 0,
+    cashAndCashEquivalents: s.cashAndCashEquivalents || 0,
   }));
 
-  const cashFlows = (q.cashflowStatementHistory?.cashflowStatements || []).map((s) => {
-    const ocf = s.totalCashFromOperatingActivities || 0;
-    const capex = s.capitalExpenditures || 0;
+  const cashFlows = sortByDateDesc(cashFlowTs).map((s) => {
+    const ocf = s.operatingCashFlow || 0;
+    const capex = s.capitalExpenditure || 0;
     return {
-      date: s.endDate ? new Date(s.endDate).toISOString().slice(0, 10) : "",
+      date: s.date ? new Date(s.date).toISOString().slice(0, 10) : "",
       operatingCashFlow: ocf, capitalExpenditure: capex,
-      freeCashFlow: ocf + capex, dividendsPaid: s.dividendsPaid || 0,
+      freeCashFlow: s.freeCashFlow || ocf + capex, dividendsPaid: s.cashDividendsPaid || 0,
     };
   });
 
@@ -173,7 +194,7 @@ async function refreshTicker(ticker) {
 
   console.log(`[${ticker}] Genererer analyse...`);
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5",
     max_tokens: 4000,
     system: "Du er en erfaren norsk aksjekanalyst. Skriv presise, velformulerte analyser på norsk i journalistisk analytikerstil.",
     messages: [{ role: "user", content: buildPrompt(data, ticker) }],

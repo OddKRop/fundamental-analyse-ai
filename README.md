@@ -25,6 +25,71 @@ CREATE TABLE analyses (
 );
 ```
 
+## Personlig økonomi — Supabase-oppsett
+
+Kjør i samme Supabase-prosjekt (**SQL Editor**):
+
+```sql
+CREATE TABLE accounts (
+  id       TEXT PRIMARY KEY,   -- 'brukskonto' | 'felleskonto' | 'mastercard'
+  name     TEXT NOT NULL,
+  type     TEXT NOT NULL,      -- 'konto' | 'kredittkort'
+  currency TEXT NOT NULL DEFAULT 'NOK'
+);
+
+CREATE TABLE transactions (
+  id          BIGSERIAL PRIMARY KEY,
+  account_id  TEXT NOT NULL REFERENCES accounts(id),
+  date        DATE NOT NULL,
+  description TEXT NOT NULL,
+  amount      NUMERIC NOT NULL,        -- alltid positivt, se "direction"
+  direction   TEXT NOT NULL CHECK (direction IN ('inn', 'ut')),
+  category    TEXT,
+  merchant    TEXT,
+  dedup_hash  TEXT NOT NULL UNIQUE,    -- hash(account_id + date + description + amount + direction)
+  imported_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX transactions_account_date_idx ON transactions (account_id, date);
+
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+```
+
+RLS er slått på uten policies — kun `service_role`-nøkkelen (server-side) har tilgang, siden den omgår RLS. `anon`/`authenticated`-nøkler (som appen aldri eksponerer) får ingen tilgang.
+
+## Portefølje — Supabase-oppsett
+
+Kjør i samme Supabase-prosjekt (**SQL Editor**):
+
+```sql
+CREATE TABLE holdings (
+  id         BIGSERIAL PRIMARY KEY,
+  ticker     TEXT NOT NULL,
+  quantity   NUMERIC NOT NULL,
+  avg_price  NUMERIC NOT NULL,   -- GAV (gjennomsnittlig anskaffelsesverdi), i oppgitt valuta
+  currency   TEXT NOT NULL DEFAULT 'NOK',
+  broker     TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE holdings ENABLE ROW LEVEL SECURITY;
+```
+
+### CSV-import-format
+
+Opplasting på `/portefolje/import` forventer en `;`-delimitert fil med header:
+
+```
+ticker;antall;gav;valuta
+EQNR.OL;100;285.50;NOK
+DNB.OL;50;220;NOK
+```
+
+`valuta` er valgfri (default `NOK`).
+
+`dedup_hash` er unik slik at re-import av overlappende eksportfiler (f.eks. "siste 90 dager"-utskrifter) ikke lager duplikater — samme transaksjon gir samme hash og blir hoppet over.
+
 ## Miljøvariabler
 
 Kopier `.env.local.example` til `.env.local` og fyll inn:
@@ -35,6 +100,7 @@ Kopier `.env.local.example` til `.env.local` og fyll inn:
 | `SUPABASE_URL` | Project Settings → API → Project URL |
 | `SUPABASE_SERVICE_KEY` | Project Settings → API → service_role key |
 | `CRON_SECRET` | Valgfri hemmelig streng — beskytter refresh-endepunktet |
+| `SITE_PASSWORD` | Passord som beskytter hele siten (se `proxy.ts`) — appen inneholder personlig økonomidata |
 
 ## Oppsett lokalt
 

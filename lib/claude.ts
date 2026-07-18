@@ -124,7 +124,7 @@ export async function generateAnalysis(
   const userPrompt = USER_PROMPT_TEMPLATE(dataSummary, ticker);
 
   const message = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5",
     max_tokens: 4000,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userPrompt }],
