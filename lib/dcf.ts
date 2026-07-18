@@ -1,3 +1,9 @@
+import type { FundamentalData } from "./yahoo";
+
+export const DEFAULT_GROWTH_RATE = 0.08;
+export const DEFAULT_PROJECTION_YEARS = 5;
+export const DEFAULT_TERMINAL_GROWTH_RATE = 0.025;
+
 export interface DcfAssumptions {
   baseFcf: number;
   growthRate: number; // f.eks. 0.08 for 8 % årlig vekst i prognoseperioden
@@ -80,4 +86,48 @@ export function estimateDefaultWacc(beta: number, marketCap: number, totalDebt: 
 
   const wacc = equityWeight * costOfEquity + debtWeight * costOfDebtAfterTax;
   return Math.min(0.15, Math.max(0.06, wacc));
+}
+
+export interface DefaultValuation {
+  valuePerShare: number;
+  currentPrice: number;
+  diffPct: number; // (valuePerShare - currentPrice) / currentPrice
+}
+
+/**
+ * Kjører DCF-en med samme standardforutsetninger som kalkulatoren starter på
+ * (DEFAULT_GROWTH_RATE/DEFAULT_PROJECTION_YEARS/DEFAULT_TERMINAL_GROWTH_RATE,
+ * WACC fra estimateDefaultWacc) — til bruk der vi trenger et raskt over/undervurdert-
+ * anslag for mange tickere uten at brukeren har justert noe selv.
+ */
+export function computeDefaultValuation(data: FundamentalData): DefaultValuation | null {
+  const latestFcf = data.cashFlows[0]?.freeCashFlow ?? 0;
+  const latestBalance = data.balanceSheets[0];
+  const netDebt = (latestBalance?.totalDebt ?? 0) - (latestBalance?.cashAndCashEquivalents ?? 0);
+
+  if (latestFcf <= 0 || !data.profile.sharesOutstanding) return null;
+
+  const discountRate = estimateDefaultWacc(
+    data.profile.beta || 1,
+    data.profile.mktCap,
+    latestBalance?.totalDebt ?? 0
+  );
+  if (discountRate <= DEFAULT_TERMINAL_GROWTH_RATE) return null;
+
+  const result = calculateDcf({
+    baseFcf: latestFcf,
+    growthRate: DEFAULT_GROWTH_RATE,
+    projectionYears: DEFAULT_PROJECTION_YEARS,
+    discountRate,
+    terminalGrowthRate: DEFAULT_TERMINAL_GROWTH_RATE,
+    netDebt,
+    sharesOutstanding: data.profile.sharesOutstanding,
+  });
+
+  const currentPrice = data.profile.price;
+  return {
+    valuePerShare: result.valuePerShare,
+    currentPrice,
+    diffPct: currentPrice > 0 ? (result.valuePerShare - currentPrice) / currentPrice : 0,
+  };
 }

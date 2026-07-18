@@ -1,48 +1,24 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { OSLO_BORS_TICKERS } from "@/lib/tickers";
+import { fetchFundamentalData } from "@/lib/yahoo";
+import { computeDefaultValuation, type DefaultValuation } from "@/lib/dcf";
+import TickerSearch from "./TickerSearch";
 
-interface SearchResult {
-  symbol: string;
-  name: string;
-  exchange: string;
+export const revalidate = 3600; // 1 time — unngå å kalle Yahoo Finance for alle tickere på hvert besøk
+
+async function getValuation(ticker: string): Promise<DefaultValuation | null> {
+  try {
+    const data = await fetchFundamentalData(ticker);
+    return computeDefaultValuation(data);
+  } catch {
+    return null;
+  }
 }
 
-export default function DcfPickerPage() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    const timeout = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/dcf/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        setResults(data.results ?? []);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [query]);
-
-  function goToTicker(ticker: string) {
-    router.push(`/dcf/${encodeURIComponent(ticker.toUpperCase())}`);
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (query.trim()) goToTicker(query.trim());
-  }
+export default async function DcfPickerPage() {
+  const valuations = await Promise.all(
+    OSLO_BORS_TICKERS.map(async (t) => ({ ...t, valuation: await getValuation(t.ticker) }))
+  );
 
   return (
     <div>
@@ -53,47 +29,36 @@ export default function DcfPickerPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="relative mb-10">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Søk selskap eller skriv ticker, f.eks. EQNR.OL"
-          className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300"
-        />
-        {query.trim().length >= 2 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden">
-            {loading && <div className="px-3 py-2 text-sm text-zinc-400">Søker …</div>}
-            {!loading && results.length === 0 && (
-              <div className="px-3 py-2 text-sm text-zinc-400">
-                Ingen treff — trykk Enter for å bruke &ldquo;{query}&rdquo; som ticker
-              </div>
-            )}
-            {results.map((r) => (
-              <button
-                type="button"
-                key={r.symbol}
-                onClick={() => goToTicker(r.symbol)}
-                className="w-full text-left px-3 py-2 hover:bg-zinc-50 transition-colors flex items-center justify-between gap-4"
-              >
-                <span className="text-zinc-900 font-medium truncate">{r.name}</span>
-                <span className="font-mono text-xs text-zinc-400 shrink-0">{r.symbol}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </form>
+      <TickerSearch />
 
       <h2 className="text-sm font-medium text-zinc-500 mb-3 uppercase tracking-wider">Oslo Børs</h2>
+      <p className="text-xs text-zinc-400 mb-4">
+        Over-/undervurdert er regnet ut med standardforutsetninger (8 % vekst, 5 år, 2,5 % terminalvekst) —
+        klikk inn for å justere selv.
+      </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {OSLO_BORS_TICKERS.map((t) => (
+        {valuations.map((t) => (
           <Link
             key={t.ticker}
             href={`/dcf/${t.ticker}`}
             className="px-3 py-2 rounded-lg border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50 transition-colors text-sm"
           >
             <span className="text-zinc-900 font-medium">{t.name}</span>
-            <span className="text-zinc-400 font-mono text-xs block">{t.ticker}</span>
+            <span className="text-zinc-400 font-mono text-xs block mb-1">{t.ticker}</span>
+            {t.valuation ? (
+              <span
+                className={
+                  t.valuation.diffPct >= 0
+                    ? "text-emerald-600 text-xs font-medium"
+                    : "text-red-500 text-xs font-medium"
+                }
+              >
+                {t.valuation.diffPct >= 0 ? "Undervurdert" : "Overvurdert"}{" "}
+                {Math.abs(t.valuation.diffPct * 100).toFixed(0)}%
+              </span>
+            ) : (
+              <span className="text-zinc-300 text-xs">Ingen data</span>
+            )}
           </Link>
         ))}
       </div>

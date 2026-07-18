@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { calculateDcf } from "@/lib/dcf";
+import {
+  calculateDcf,
+  DEFAULT_GROWTH_RATE,
+  DEFAULT_PROJECTION_YEARS,
+  DEFAULT_TERMINAL_GROWTH_RATE,
+} from "@/lib/dcf";
 
 interface Props {
   currency: string;
@@ -27,10 +32,10 @@ export default function DcfCalculator({
   sharesOutstanding,
   defaultWacc,
 }: Props) {
-  const [growthRate, setGrowthRate] = useState(0.08);
-  const [projectionYears, setProjectionYears] = useState(5);
+  const [growthRate, setGrowthRate] = useState(DEFAULT_GROWTH_RATE);
+  const [projectionYears, setProjectionYears] = useState(DEFAULT_PROJECTION_YEARS);
   const [discountRate, setDiscountRate] = useState(Number(defaultWacc.toFixed(3)));
-  const [terminalGrowthRate, setTerminalGrowthRate] = useState(0.025);
+  const [terminalGrowthRate, setTerminalGrowthRate] = useState(DEFAULT_TERMINAL_GROWTH_RATE);
 
   const result = useMemo(() => {
     if (discountRate <= terminalGrowthRate) return null;
