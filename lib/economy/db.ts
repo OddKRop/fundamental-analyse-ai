@@ -61,24 +61,40 @@ export async function insertTransactions(
   return { inserted, duplicates: rows.length - inserted };
 }
 
+export async function updateTransactionCategory(id: number, category: string): Promise<void> {
+  const { error } = await getClient().from("transactions").update({ category }).eq("id", id);
+  if (error) throw new Error(`Supabase-feil (transactions): ${error.message}`);
+}
+
 export interface TransactionFilter {
   accountId?: AccountId;
   from?: string;
   to?: string;
 }
 
-export async function getTransactions(filter: TransactionFilter = {}): Promise<Transaction[]> {
-  let query = getClient().from("transactions").select("*").order("date", { ascending: false });
+const PAGE_SIZE = 1000; // Supabase/PostgREST sitt standardtak per forespørsel — må paginere forbi dette
 
-  if (filter.accountId) query = query.eq("account_id", filter.accountId);
-  if (filter.from) query = query.gte("date", filter.from);
-  if (filter.to) query = query.lte("date", filter.to);
+export async function getTransactions(filter: TransactionFilter = {}): Promise<Transaction[]> {
+  const all: Transaction[] = [];
+  let from = 0;
 
   try {
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as Transaction[];
+    for (;;) {
+      let query = getClient().from("transactions").select("*").order("date", { ascending: false });
+
+      if (filter.accountId) query = query.eq("account_id", filter.accountId);
+      if (filter.from) query = query.gte("date", filter.from);
+      if (filter.to) query = query.lte("date", filter.to);
+
+      const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+      if (error || !data) break;
+
+      all.push(...(data as Transaction[]));
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
   } catch {
-    return [];
+    return all;
   }
 }
